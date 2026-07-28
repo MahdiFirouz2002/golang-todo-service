@@ -1,0 +1,39 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go build / coverage
+coverage.out
+coverage.html
+*.coverprofile
+
+# Dependency / IDE
+vendor/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Profiling / benchmarks
+*.prof
+pprof/
+
+# Temporary
+tmp/
+temp/
