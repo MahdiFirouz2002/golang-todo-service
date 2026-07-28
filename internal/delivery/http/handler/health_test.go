@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +16,7 @@ func init() {
 }
 
 func TestHealthHandler_Live(t *testing.T) {
-	h := handler.NewHealthHandler()
+	h := handler.NewHealthHandler(nil)
 	router := gin.New()
 	router.GET("/health/live", h.Live)
 
@@ -37,26 +38,48 @@ func TestHealthHandler_Live(t *testing.T) {
 }
 
 func TestHealthHandler_Ready(t *testing.T) {
-	h := handler.NewHealthHandler()
-	router := gin.New()
-	router.GET("/health/ready", h.Ready)
+	t.Run("ready when ping succeeds", func(t *testing.T) {
+		h := handler.NewHealthHandler(func(_ context.Context) error { return nil })
+		router := gin.New()
+		router.GET("/health/ready", h.Ready)
 
-	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
-	}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+		}
 
-	var body map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("unmarshal body: %v", err)
-	}
-	if body["status"] != "ready" {
-		t.Errorf("status = %v, want ready", body["status"])
-	}
-	if _, ok := body["uptime"]; !ok {
-		t.Error("expected uptime field in response")
-	}
+		var body map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("unmarshal body: %v", err)
+		}
+		if body["status"] != "ready" {
+			t.Errorf("status = %v, want ready", body["status"])
+		}
+		if _, ok := body["uptime"]; !ok {
+			t.Error("expected uptime field in response")
+		}
+	})
+
+	t.Run("not ready when ping fails", func(t *testing.T) {
+		h := handler.NewHealthHandler(func(_ context.Context) error {
+			return assertErr("db down")
+		})
+		router := gin.New()
+		router.GET("/health/ready", h.Ready)
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+		}
+	})
 }
+
+type assertErr string
+
+func (e assertErr) Error() string { return string(e) }

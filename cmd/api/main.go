@@ -10,6 +10,7 @@ import (
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/config"
 	httpserver "github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http/handler"
+	"github.com/MahdiFirouz2002/golang-todo-service/internal/infrastructure/postgres"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,8 +36,22 @@ func run() error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	ctx := context.Background()
+
+	pool, err := postgres.NewPool(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	if err := postgres.Migrate(ctx, pool); err != nil {
+		return err
+	}
+
 	router := httpserver.NewRouter(httpserver.Dependencies{
-		Health: handler.NewHealthHandler(),
+		Health: handler.NewHealthHandler(func(ctx context.Context) error {
+			return postgres.Ping(ctx, pool)
+		}),
 	})
 
 	srv := httpserver.New(cfg, router)
@@ -47,13 +62,13 @@ func run() error {
 		errCh <- srv.Start()
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	select {
 	case err := <-errCh:
 		return err
-	case <-ctx.Done():
+	case <-sigCtx.Done():
 		slog.Info("shutdown signal received")
 		if err := srv.Shutdown(context.Background()); err != nil {
 			return err

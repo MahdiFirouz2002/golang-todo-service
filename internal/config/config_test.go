@@ -76,3 +76,29 @@ func TestLoad_InvalidPort(t *testing.T) {
 		t.Fatal("Load() expected error for invalid port, got nil")
 	}
 }
+
+func TestLoad_DatabaseDefaults(t *testing.T) {
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+
+	if cfg.DatabaseURL == "" {
+		t.Fatal("expected default DATABASE_URL")
+	}
+	if cfg.DBMaxConns != 10 {
+		t.Errorf("DBMaxConns = %d, want 10", cfg.DBMaxConns)
+	}
+	if cfg.DBMinConns != 2 {
+		t.Errorf("DBMinConns = %d, want 2", cfg.DBMinConns)
+	}
+}
+
+func TestLoad_InvalidDBMaxConns(t *testing.T) {
+	t.Setenv("DB_MAX_CONNS", "0")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("Load() expected error for invalid DB_MAX_CONNS, got nil")
+	}
+}

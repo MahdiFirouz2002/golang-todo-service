@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -10,11 +11,15 @@ import (
 // HealthHandler exposes liveness and readiness probes.
 type HealthHandler struct {
 	startedAt time.Time
+	ping      func(ctx context.Context) error
 }
 
 // NewHealthHandler creates a HealthHandler.
-func NewHealthHandler() *HealthHandler {
-	return &HealthHandler{startedAt: time.Now().UTC()}
+func NewHealthHandler(ping func(ctx context.Context) error) *HealthHandler {
+	return &HealthHandler{
+		startedAt: time.Now().UTC(),
+		ping:      ping,
+	}
 }
 
 // Live responds when the process is running.
@@ -26,11 +31,20 @@ func (h *HealthHandler) Live(c *gin.Context) {
 }
 
 // Ready responds when the service is ready to accept traffic.
-// Persistence checks will be wired in a later stage.
 // GET /health/ready
 func (h *HealthHandler) Ready(c *gin.Context) {
+	if h.ping != nil {
+		if err := h.ping(c.Request.Context()); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "not_ready",
+				"error":  "database unavailable",
+			})
+			return
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"status":  "ready",
-		"uptime":  time.Since(h.startedAt).Round(time.Second).String(),
+		"status": "ready",
+		"uptime": time.Since(h.startedAt).Round(time.Second).String(),
 	})
 }
