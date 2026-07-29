@@ -2,19 +2,20 @@
 
 A small Go backend that manages to-do tasks over a REST API. Built with clean architecture and the Gin framework.
 
-> **Current stage:** `feature/bootstrap` — project skeleton, configuration, HTTP server lifecycle, and health probes.
+> **Current stage:** `feature/database` — PostgreSQL persistence, migrations, and repository adapter.
 
 ## Architecture
 
 ```
-cmd/api/                  Application entrypoint (composition root)
+cmd/api/                         Application entrypoint (composition root)
 internal/
-  config/                 Environment-based configuration
-  domain/                 Entities and repository ports (interfaces)
-  delivery/http/          Gin HTTP adapters (handlers, router, server)
+  config/                        Environment-based configuration
+  domain/                        Entities and repository ports (interfaces)
+  infrastructure/postgres/       PostgreSQL pool, migrations, repository
+  delivery/http/                 Gin HTTP adapters (handlers, router, server)
 ```
 
-Dependency rule: outer layers depend inward. Domain has no framework or infrastructure imports. HTTP delivery depends on domain ports; persistence adapters (next stages) will implement those ports.
+Dependency rule: outer layers depend inward. Domain has no framework or infrastructure imports. Infrastructure implements domain ports; HTTP delivery stays thin and delegates to use cases in later stages.
 
 ```mermaid
 flowchart TB
@@ -22,17 +23,19 @@ flowchart TB
   Delivery --> Domain[domain]
   Delivery -.->|future| UseCase[usecase]
   UseCase -.-> Domain
-  RepoImpl[repository adapters] -.->|implements| Domain
+  Postgres[infrastructure/postgres] --> Domain
 ```
 
 ## Prerequisites
 
 - Go 1.24+
+- PostgreSQL 15+
 
 ## Setup
 
 ```bash
 cp .env.example .env
+# Start PostgreSQL and create the todos database, then:
 go mod download
 ```
 
@@ -82,6 +85,6 @@ go test ./...
 
 ## Trade-offs
 
-- No persistence yet — health `ready` only reflects process readiness; DB checks come with `feature/database`.
-- README intentionally omits Docker / Swagger / curl CRUD examples until those branches land.
+- Migrations run automatically at startup from embedded SQL files; no separate migration CLI yet (keeps local setup simple for the assessment).
+- Task CRUD HTTP endpoints land in `feature/task-api`; this stage wires persistence only.
 - Module path matches the GitHub repository (`github.com/MahdiFirouz2002/golang-todo-service`).
