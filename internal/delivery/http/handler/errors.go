@@ -9,6 +9,11 @@ import (
 )
 
 func respondError(c *gin.Context, err error) {
+	RespondError(c, err)
+}
+
+// RespondError maps domain errors to HTTP responses.
+func RespondError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
