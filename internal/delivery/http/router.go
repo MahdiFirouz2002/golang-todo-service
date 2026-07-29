@@ -8,6 +8,7 @@ import (
 // Dependencies holds the HTTP-layer collaborators required to build the router.
 type Dependencies struct {
 	Health *handler.HealthHandler
+	Tasks  *handler.TaskHandler
 }
 
 // NewRouter constructs the Gin engine and registers routes.
@@ -28,6 +29,14 @@ func registerRoutes(router *gin.Engine, deps Dependencies) {
 		health.GET("/ready", deps.Health.Ready)
 	}
 
-	// Task CRUD routes will be registered under /api/v1 in feature/task-api.
-	_ = router.Group("/api/v1")
+	if deps.Tasks != nil {
+		tasks := router.Group("/api/v1/tasks")
+		{
+			tasks.POST("", deps.Tasks.Create)
+			tasks.GET("", deps.Tasks.List)
+			tasks.GET("/:id", deps.Tasks.Get)
+			tasks.PUT("/:id", deps.Tasks.Update)
+			tasks.DELETE("/:id", deps.Tasks.Delete)
+		}
+	}
 }
