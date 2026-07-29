@@ -11,6 +11,7 @@ import (
 	httpserver "github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http/handler"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/infrastructure/postgres"
+	taskusecase "github.com/MahdiFirouz2002/golang-todo-service/internal/usecase/task"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,10 +49,14 @@ func run() error {
 		return err
 	}
 
+	taskRepo := postgres.NewTaskRepository(pool)
+	taskService := taskusecase.NewService(taskRepo)
+
 	router := httpserver.NewRouter(httpserver.Dependencies{
 		Health: handler.NewHealthHandler(func(ctx context.Context) error {
 			return postgres.Ping(ctx, pool)
 		}),
+		Tasks: handler.NewTaskHandler(taskService),
 	})
 
 	srv := httpserver.New(cfg, router)
