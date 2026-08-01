@@ -28,6 +28,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 
 func registerRoutes(router *gin.Engine, deps Dependencies) {
 	registerSwagger(router)
+	registerProfiling(router)
 
 	health := router.Group("/health")
 	{

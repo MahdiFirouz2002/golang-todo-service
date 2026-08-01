@@ -1,4 +1,4 @@
-.PHONY: test test-integration coverage coverage-check build run
+.PHONY: test test-integration coverage coverage-check build run bench load-test
 
 test:
 	go test ./...
@@ -13,6 +13,12 @@ coverage:
 coverage-check:
 	go test ./... -coverprofile=coverage.out -covermode=atomic
 	@go tool cover -func=coverage.out | findstr /C:"total:"
+
+bench:
+	go test -bench=. -benchmem ./internal/usecase/task/...
+
+load-test:
+	bash scripts/load_test.sh
 
 build:
 	go build -o bin/api ./cmd/api
