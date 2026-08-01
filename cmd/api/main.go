@@ -6,11 +6,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/config"
 	httpserver "github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http/handler"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/infrastructure/postgres"
+	"github.com/MahdiFirouz2002/golang-todo-service/internal/observability/metrics"
+	"github.com/MahdiFirouz2002/golang-todo-service/internal/observability/tracing"
 	taskusecase "github.com/MahdiFirouz2002/golang-todo-service/internal/usecase/task"
 	"github.com/gin-gonic/gin"
 )
@@ -39,6 +42,14 @@ func run() error {
 
 	ctx := context.Background()
 
+	shutdownTracing, err := tracing.Init(ctx, "task-manager")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = shutdownTracing(context.Background())
+	}()
+
 	pool, err := postgres.NewPool(ctx, cfg)
 	if err != nil {
 		return err
@@ -51,6 +62,10 @@ func run() error {
 
 	taskRepo := postgres.NewTaskRepository(pool)
 	taskService := taskusecase.NewService(taskRepo)
+
+	metricsCtx, metricsCancel := context.WithCancel(ctx)
+	defer metricsCancel()
+	metrics.StartTasksCountPoller(metricsCtx, taskRepo, 15*time.Second)
 
 	router := httpserver.NewRouter(httpserver.Dependencies{
 		Health: handler.NewHealthHandler(func(ctx context.Context) error {
