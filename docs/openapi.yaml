@@ -1,0 +1,189 @@
+openapi: 3.0.3
+info:
+  title: Task Manager API
+  description: REST API for managing to-do tasks.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: tasks
+    description: Task operations
+  - name: health
+    description: Health probes
+paths:
+  /health/live:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Readiness probe
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+        "503":
+          description: Service is not ready
+  /api/v1/tasks:
+    get:
+      tags: [tasks]
+      summary: List tasks
+      responses:
+        "200":
+          description: Task list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      tags: [tasks]
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/tasks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TaskID"
+    get:
+      tags: [tasks]
+      summary: Get a task by ID
+      responses:
+        "200":
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Task not found
+    put:
+      tags: [tasks]
+      summary: Update a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+      responses:
+        "200":
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Invalid input
+        "404":
+          description: Task not found
+    delete:
+      tags: [tasks]
+      summary: Delete a task
+      responses:
+        "204":
+          description: Task deleted
+        "404":
+          description: Task not found
+components:
+  parameters:
+    TaskID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done]
+        assignee:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done]
+        assignee:
+          type: string
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done]
+        assignee:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+    ReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        uptime:
+          type: string
