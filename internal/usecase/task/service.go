@@ -72,9 +72,39 @@ func (s *Service) GetByID(ctx context.Context, id string) (*domain.Task, error) 
 	return s.repo.GetByID(ctx, id)
 }
 
-// List returns all tasks.
-func (s *Service) List(ctx context.Context) ([]*domain.Task, error) {
-	return s.repo.List(ctx)
+// ListInput holds list query parameters.
+type ListInput struct {
+	Status   *domain.TaskStatus
+	Assignee *string
+	Page     int
+	PageSize int
+}
+
+// List returns tasks matching optional filters with pagination.
+func (s *Service) List(ctx context.Context, input ListInput) (*domain.ListResult, error) {
+	page := input.Page
+	if page < 1 {
+		page = 1
+	}
+
+	pageSize := input.PageSize
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	if input.Status != nil && !input.Status.Valid() {
+		return nil, fmt.Errorf("%w: invalid status filter", domain.ErrInvalidInput)
+	}
+
+	return s.repo.List(ctx, domain.ListFilter{
+		Status:   input.Status,
+		Assignee: input.Assignee,
+		Page:     page,
+		PageSize: pageSize,
+	})
 }
 
 // Update modifies an existing task.

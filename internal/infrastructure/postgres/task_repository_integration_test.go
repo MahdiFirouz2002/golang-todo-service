@@ -49,9 +49,9 @@ func TestTaskRepository_CRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, task.Title, found.Title)
 
-	tasks, err := repo.List(ctx)
+	result, err := repo.List(ctx, domain.ListFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
-	require.NotEmpty(t, tasks)
+	require.NotEmpty(t, result.Items)
 
 	found.Title = "Updated"
 	require.NoError(t, repo.Update(ctx, found))

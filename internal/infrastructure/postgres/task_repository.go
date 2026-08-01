@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/domain"
@@ -76,32 +77,86 @@ func (r *TaskRepository) GetByID(ctx context.Context, id string) (*domain.Task, 
 	return task, nil
 }
 
-func (r *TaskRepository) List(ctx context.Context) ([]*domain.Task, error) {
-	const query = `
-		SELECT id, title, description, status, assignee, created_at, updated_at
-		FROM tasks
-		ORDER BY created_at DESC`
+func (r *TaskRepository) List(ctx context.Context, filter domain.ListFilter) (*domain.ListResult, error) {
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize < 1 {
+		pageSize = 20
+	}
 
-	rows, err := r.pool.Query(ctx, query)
+	where, args := buildListWhere(filter)
+	offset := (page - 1) * pageSize
+
+	countQuery := "SELECT COUNT(*) FROM tasks" + where
+	var total int64
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, fmt.Errorf("count tasks: %w", err)
+	}
+
+	listArgs := append([]any{}, args...)
+	listArgs = append(listArgs, pageSize, offset)
+
+	query := `
+		SELECT id, title, description, status, assignee, created_at, updated_at
+		FROM tasks` + where + `
+		ORDER BY created_at DESC
+		LIMIT $` + fmt.Sprint(len(args)+1) + ` OFFSET $` + fmt.Sprint(len(args)+2)
+
+	rows, err := r.pool.Query(ctx, query, listArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("select tasks: %w", err)
 	}
 	defer rows.Close()
 
-	tasks := make([]*domain.Task, 0)
+	items := make([]*domain.Task, 0)
 	for rows.Next() {
 		task, err := scanTask(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
-		tasks = append(tasks, task)
+		items = append(items, task)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate tasks: %w", err)
 	}
 
-	return tasks, nil
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize != 0 {
+		totalPages++
+	}
+	if total == 0 {
+		totalPages = 0
+	}
+
+	return &domain.ListResult{
+		Items:      items,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func buildListWhere(filter domain.ListFilter) (string, []any) {
+	clauses := make([]string, 0, 2)
+	args := make([]any, 0, 2)
+
+	if filter.Status != nil {
+		args = append(args, string(*filter.Status))
+		clauses = append(clauses, fmt.Sprintf("status = $%d", len(args)))
+	}
+	if filter.Assignee != nil {
+		args = append(args, *filter.Assignee)
+		clauses = append(clauses, fmt.Sprintf("assignee = $%d", len(args)))
+	}
+
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
 func (r *TaskRepository) Update(ctx context.Context, task *domain.Task) error {

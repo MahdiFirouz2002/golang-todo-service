@@ -34,7 +34,7 @@ func TestNewRouter_HealthRoutes(t *testing.T) {
 
 func TestNewRouter_TaskRoutesRegistered(t *testing.T) {
 	repo := mocks.NewTaskRepository(t)
-	repo.On("List", mock.Anything).Return([]*domain.Task{}, nil)
+	repo.On("List", mock.Anything, mock.Anything).Return(&domain.ListResult{Items: []*domain.Task{}}, nil)
 
 	svc := task.NewService(repo)
 	router := httpserver.NewRouter(httpserver.Dependencies{

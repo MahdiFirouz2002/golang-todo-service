@@ -32,10 +32,10 @@ func (m *TaskRepository) GetByID(ctx context.Context, id string) (*domain.Task, 
 	return task, args.Error(1)
 }
 
-func (m *TaskRepository) List(ctx context.Context) ([]*domain.Task, error) {
-	args := m.Called(ctx)
-	tasks, _ := args.Get(0).([]*domain.Task)
-	return tasks, args.Error(1)
+func (m *TaskRepository) List(ctx context.Context, filter domain.ListFilter) (*domain.ListResult, error) {
+	args := m.Called(ctx, filter)
+	result, _ := args.Get(0).(*domain.ListResult)
+	return result, args.Error(1)
 }
 
 func (m *TaskRepository) Update(ctx context.Context, task *domain.Task) error {
