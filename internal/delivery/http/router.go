@@ -2,8 +2,11 @@ package httpserver
 
 import (
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http/handler"
+	obshttp "github.com/MahdiFirouz2002/golang-todo-service/internal/observability/http"
 	"github.com/gin-gonic/gin"
 )
+
+const serviceName = "task-manager"
 
 // Dependencies holds the HTTP-layer collaborators required to build the router.
 type Dependencies struct {
@@ -15,6 +18,7 @@ type Dependencies struct {
 func NewRouter(deps Dependencies) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
+	obshttp.Register(router, serviceName)
 	router.Use(gin.Logger())
 
 	registerRoutes(router, deps)
