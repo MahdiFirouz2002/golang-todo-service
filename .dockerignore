@@ -1,0 +1,5 @@
+api
+bin/
+coverage.out
+.env
+.commit-msg.tmp

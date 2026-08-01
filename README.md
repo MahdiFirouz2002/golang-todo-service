@@ -29,9 +29,19 @@ flowchart TB
 ## Prerequisites
 
 - Go 1.24+
-- PostgreSQL 15+
+- PostgreSQL 15+ (or Docker Compose)
 
 ## Setup
+
+### Option A: Docker Compose (recommended)
+
+```bash
+docker compose up --build
+```
+
+The API is available at `http://localhost:8080` and Swagger UI at `http://localhost:8080/swagger/index.html`.
+
+### Option B: Local Go
 
 ```bash
 cp .env.example .env
