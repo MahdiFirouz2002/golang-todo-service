@@ -1,8 +1,6 @@
 # Task Manager Microservice
 
-A small Go backend that manages to-do tasks over a REST API. Built with clean architecture and the Gin framework.
-
-> **Current stage:** `feature/task-api` — RESTful task CRUD backed by PostgreSQL.
+A Go backend that manages to-do tasks over a REST API. Built with clean architecture, Gin, PostgreSQL, and optional Redis caching.
 
 ## Architecture
 
@@ -10,139 +8,117 @@ A small Go backend that manages to-do tasks over a REST API. Built with clean ar
 cmd/api/                         Application entrypoint (composition root)
 internal/
   config/                        Environment-based configuration
-  domain/                        Entities and repository ports (interfaces)
+  domain/                        Entities and repository ports
   usecase/task/                  Task business rules
-  infrastructure/postgres/       PostgreSQL pool, migrations, repository
-  delivery/http/                 Gin HTTP adapters (handlers, router, server)
+  infrastructure/
+    postgres/                    PostgreSQL pool, migrations, repository
+    redis/                       Redis client
+    cache/                       Cache-aside list decorator
+  delivery/http/                 Gin handlers, router, server
+  observability/                 Prometheus metrics and OpenTelemetry tracing
+docs/                            OpenAPI spec and performance notes
 ```
-
-Dependency rule: outer layers depend inward. Domain has no framework imports. Use cases depend on repository ports; infrastructure implements them; HTTP handlers stay thin.
 
 ```mermaid
 flowchart TB
   Client[HTTP Client] --> Delivery[delivery/http]
   Delivery --> UseCase[usecase/task]
-  UseCase --> Domain[domain]
-  Postgres[infrastructure/postgres] --> Domain
+  UseCase --> Cache[infrastructure/cache]
+  Cache --> Postgres[infrastructure/postgres]
+  Delivery --> Metrics[observability/metrics]
+  Delivery --> Tracing[observability/tracing]
 ```
 
 ## Prerequisites
 
 - Go 1.24+
-- PostgreSQL 15+ (or Docker Compose)
+- Docker & Docker Compose (recommended)
 
-## Setup
-
-### Option A: Docker Compose (recommended)
+## Quick start (Docker Compose)
 
 ```bash
 docker compose up --build
 ```
 
-The API is available at `http://localhost:8080` and Swagger UI at `http://localhost:8080/swagger/index.html`.
+| Endpoint | URL |
+|----------|-----|
+| API | http://localhost:8080/api/v1/tasks |
+| Swagger UI | http://localhost:8080/swagger/index.html |
+| OpenAPI spec | http://localhost:8080/openapi.yaml |
+| Metrics | http://localhost:8080/metrics |
+| pprof | http://localhost:8080/debug/pprof/ |
 
-### Option B: Local Go
+## Local development
 
 ```bash
 cp .env.example .env
-# Start PostgreSQL and create the todos database, then:
 go mod download
-```
-
-## Run locally
-
-```bash
 go run ./cmd/api
 ```
 
-The server listens on `:8080` by default (`HTTP_PORT`).
-
-### Health checks
-
-```bash
-curl http://localhost:8080/health/live
-curl http://localhost:8080/health/ready
-```
-
-### Task API
+## API examples
 
 Create a task:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/tasks \
   -H "Content-Type: application/json" \
-  -d '{"title":"Write docs","description":"README examples","status":"todo","assignee":"mahdi"}'
+  -d '{"title":"Write docs","status":"todo","assignee":"mahdi"}'
 ```
 
-List tasks:
+List with pagination and filters:
 
 ```bash
-curl http://localhost:8080/api/v1/tasks
+curl "http://localhost:8080/api/v1/tasks?page=1&page_size=10&status=todo&assignee=mahdi"
 ```
 
-Get, update, and delete:
+Update and delete:
 
 ```bash
-curl http://localhost:8080/api/v1/tasks/{id}
 curl -X PUT http://localhost:8080/api/v1/tasks/{id} \
   -H "Content-Type: application/json" \
-  -d '{"title":"Updated title","status":"in_progress"}'
+  -d '{"title":"Updated","status":"in_progress"}'
 curl -X DELETE http://localhost:8080/api/v1/tasks/{id}
 ```
 
-#### Request / response formats
-
-**Create (POST /api/v1/tasks)**
-
-Request:
+### List response format
 
 ```json
 {
-  "title": "Write docs",
-  "description": "optional",
-  "status": "todo",
-  "assignee": "optional"
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 0
 }
 ```
-
-Response `201 Created`:
-
-```json
-{
-  "id": "uuid",
-  "title": "Write docs",
-  "description": "optional",
-  "status": "todo",
-  "assignee": "optional",
-  "created_at": "2026-07-29T12:00:00Z",
-  "updated_at": "2026-07-29T12:00:00Z"
-}
-```
-
-**List (GET /api/v1/tasks)** — returns a JSON array of tasks.
-
-**Update (PUT /api/v1/tasks/:id)** — send any fields to change; omitted fields stay unchanged.
-
-**Delete (DELETE /api/v1/tasks/:id)** — returns `204 No Content` on success.
 
 Valid `status` values: `todo`, `in_progress`, `done`.
 
 ## Tests
 
 ```bash
-# Unit tests
 make test
-
-# Coverage report
 make coverage
+make bench
+```
 
-# Integration tests (requires running PostgreSQL)
+Integration tests (requires PostgreSQL):
+
+```bash
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/todos?sslmode=disable make test-integration
 ```
 
-The project targets **≥ 70% test coverage** using unit tests with mocked repositories and optional PostgreSQL integration tests.
+## Performance
 
-## Roadmap
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for benchmarks, pprof usage, and load testing.
+
+```bash
+make bench
+make load-test
+```
+
+## Branch history
 
 | Branch | Scope |
 |--------|--------|
@@ -153,19 +129,21 @@ The project targets **≥ 70% test coverage** using unit tests with mocked repos
 | `feature/swagger` | OpenAPI / Swagger UI |
 | `feature/docker` | Dockerfile + Compose |
 | `feature/observability` | Prometheus + tracing |
-| `feature/cache` | Redis cache-aside (optional) |
-| `feature/filtering` | Pagination & filters (optional) |
-| `feature/performance` | Load test / pprof (optional) |
+| `feature/filtering` | Pagination & filters |
+| `feature/cache` | Redis cache-aside |
+| `feature/performance` | Benchmarks / pprof |
 
 ## Design decisions
 
-- **Clean architecture** keeps domain and use cases independent from Gin and PostgreSQL.
-- **Repository port** in `domain` allows mocking in tests and swapping storage later.
-- **Embedded migrations** run at startup to simplify local development before Docker Compose lands.
-- **Use case layer** centralises validation (title required, valid status, UUID checks).
+- **Clean architecture** keeps domain and use cases independent from frameworks.
+- **Repository port** enables mocking and cache decoration without changing business logic.
+- **Embedded migrations** simplify local and container startup.
+- **Cache-aside** wraps the repository to keep HTTP handlers unaware of Redis.
+- **Observability** uses Prometheus counters/histograms/gauges and stdout OpenTelemetry traces for development.
 
 ## Trade-offs
 
-- Migrations run automatically at startup; no standalone migration CLI yet.
-- Docker Compose and Swagger documentation are planned for upcoming branches.
-- Module path matches the GitHub repository (`github.com/MahdiFirouz2002/golang-todo-service`).
+- Migrations run at startup instead of a separate CLI.
+- Redis caching is opt-in via `REDIS_ENABLED`.
+- pprof is exposed for assessment; restrict in production deployments.
+- Module path: `github.com/MahdiFirouz2002/golang-todo-service`.

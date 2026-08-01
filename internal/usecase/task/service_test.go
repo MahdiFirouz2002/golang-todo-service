@@ -198,3 +198,28 @@ func TestService_List_PaginationDefaults(t *testing.T) {
 		t.Fatalf("page = %d pageSize = %d, want 1 and 20", result.Page, result.PageSize)
 	}
 }
+
+func BenchmarkService_Create(b *testing.B) {
+	repo := newMockTaskRepository()
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = svc.Create(ctx, CreateInput{Title: "Benchmark task"})
+	}
+}
+
+func BenchmarkService_List(b *testing.B) {
+	repo := newMockTaskRepository()
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	_, _ = svc.Create(ctx, CreateInput{Title: "Seed"})
+	status := domain.StatusTodo
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = svc.List(ctx, ListInput{Status: &status})
+	}
+}
