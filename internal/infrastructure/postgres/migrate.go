@@ -13,6 +13,10 @@ var migrationFS embed.FS
 
 // Migrate applies embedded SQL migrations in lexical order.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+	if pool == nil {
+		return fmt.Errorf("database pool is required")
+	}
+
 	entries, err := migrationFS.ReadDir("migrations")
 	if err != nil {
 		return fmt.Errorf("read migrations directory: %w", err)

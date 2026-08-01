@@ -120,8 +120,17 @@ Valid `status` values: `todo`, `in_progress`, `done`.
 ## Tests
 
 ```bash
-go test ./...
+# Unit tests
+make test
+
+# Coverage report
+make coverage
+
+# Integration tests (requires running PostgreSQL)
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/todos?sslmode=disable make test-integration
 ```
+
+The project targets **≥ 70% test coverage** using unit tests with mocked repositories and optional PostgreSQL integration tests.
 
 ## Roadmap
 
