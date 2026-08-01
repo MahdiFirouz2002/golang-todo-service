@@ -11,7 +11,10 @@ import (
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/config"
 	httpserver "github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http/handler"
+	"github.com/MahdiFirouz2002/golang-todo-service/internal/domain"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/infrastructure/postgres"
+	appcache "github.com/MahdiFirouz2002/golang-todo-service/internal/infrastructure/cache"
+	redisinfra "github.com/MahdiFirouz2002/golang-todo-service/internal/infrastructure/redis"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/observability/metrics"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/observability/tracing"
 	taskusecase "github.com/MahdiFirouz2002/golang-todo-service/internal/usecase/task"
@@ -60,7 +63,20 @@ func run() error {
 		return err
 	}
 
-	taskRepo := postgres.NewTaskRepository(pool)
+	var taskRepo domain.TaskRepository = postgres.NewTaskRepository(pool)
+
+	if cfg.RedisEnabled {
+		redisClient, err := redisinfra.NewClient(cfg)
+		if err != nil {
+			return err
+		}
+		defer redisClient.Close()
+
+		listCache := appcache.NewListCache(redisClient, cfg.CacheTTL)
+		taskRepo = appcache.NewCachedTaskRepository(taskRepo, listCache)
+		slog.Info("redis list cache enabled")
+	}
+
 	taskService := taskusecase.NewService(taskRepo)
 
 	metricsCtx, metricsCancel := context.WithCancel(ctx)

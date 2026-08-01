@@ -19,6 +19,9 @@ type Config struct {
 	DBMaxConns          int32
 	DBMinConns          int32
 	DBMaxConnLifetime   time.Duration
+	RedisURL            string
+	RedisEnabled        bool
+	CacheTTL            time.Duration
 }
 
 // Load reads configuration from the environment and applies sensible defaults.
@@ -29,6 +32,11 @@ func Load() (*Config, error) {
 	}
 
 	minConns, err := getInt32Env("DB_MIN_CONNS", 2)
+	if err != nil {
+		return nil, err
+	}
+
+	redisEnabled, err := getBoolEnv("REDIS_ENABLED", false)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +52,9 @@ func Load() (*Config, error) {
 		DBMaxConns:        maxConns,
 		DBMinConns:        minConns,
 		DBMaxConnLifetime: getDurationEnv("DB_MAX_CONN_LIFETIME", time.Hour),
+		RedisURL:          getEnv("REDIS_URL", "redis://localhost:6379/0"),
+		RedisEnabled:      redisEnabled,
+		CacheTTL:          getDurationEnv("CACHE_TTL", 5*time.Minute),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -119,4 +130,18 @@ func getInt32Env(key string, fallback int32) (int32, error) {
 	}
 
 	return int32(parsed), nil
+}
+
+func getBoolEnv(key string, fallback bool) (bool, error) {
+	value, ok := os.LookupEnv(key)
+	if !ok || value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a valid boolean, got %q", key, value)
+	}
+
+	return parsed, nil
 }
