@@ -82,7 +82,7 @@ func TestTaskHandler_Get_InvalidID(t *testing.T) {
 
 func TestTaskHandler_List_Error(t *testing.T) {
 	router, repo := newTaskRouterWithMock(t)
-	repo.On("List", mock.Anything).Return(([]*domain.Task)(nil), errors.New("db error"))
+	repo.On("List", mock.Anything, mock.Anything).Return((*domain.ListResult)(nil), errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/tasks", nil)
 	rec := httptest.NewRecorder()

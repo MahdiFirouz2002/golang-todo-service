@@ -38,13 +38,55 @@ func (m *mockTaskRepository) GetByID(_ context.Context, id string) (*domain.Task
 	return &copyTask, nil
 }
 
-func (m *mockTaskRepository) List(_ context.Context) ([]*domain.Task, error) {
-	result := make([]*domain.Task, 0, len(m.tasks))
+func (m *mockTaskRepository) List(_ context.Context, filter domain.ListFilter) (*domain.ListResult, error) {
+	items := make([]*domain.Task, 0, len(m.tasks))
 	for _, task := range m.tasks {
+		if filter.Status != nil && task.Status != *filter.Status {
+			continue
+		}
+		if filter.Assignee != nil && task.Assignee != *filter.Assignee {
+			continue
+		}
 		copyTask := *task
-		result = append(result, &copyTask)
+		items = append(items, &copyTask)
 	}
-	return result, nil
+
+	total := int64(len(items))
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize < 1 {
+		pageSize = 20
+	}
+
+	start := (page - 1) * pageSize
+	if start >= len(items) {
+		items = []*domain.Task{}
+	} else {
+		end := start + pageSize
+		if end > len(items) {
+			end = len(items)
+		}
+		items = items[start:end]
+	}
+
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize != 0 {
+		totalPages++
+	}
+	if total == 0 {
+		totalPages = 0
+	}
+
+	return &domain.ListResult{
+		Items:      items,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func (m *mockTaskRepository) Update(_ context.Context, task *domain.Task) error {
@@ -130,5 +172,29 @@ func TestService_Delete(t *testing.T) {
 	_, err = svc.GetByID(context.Background(), created.ID)
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("GetByID() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestService_List_InvalidStatus(t *testing.T) {
+	repo := newMockTaskRepository()
+	svc := NewService(repo)
+
+	status := domain.TaskStatus("bad")
+	_, err := svc.List(context.Background(), ListInput{Status: &status})
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("List() error = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestService_List_PaginationDefaults(t *testing.T) {
+	repo := newMockTaskRepository()
+	svc := NewService(repo)
+
+	result, err := svc.List(context.Background(), ListInput{})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if result.Page != 1 || result.PageSize != 20 {
+		t.Fatalf("page = %d pageSize = %d, want 1 and 20", result.Page, result.PageSize)
 	}
 }

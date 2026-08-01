@@ -35,12 +35,12 @@ func TestService_GetByID_NotFound(t *testing.T) {
 func TestService_List(t *testing.T) {
 	repo := mocks.NewTaskRepository(t)
 	expected := []*domain.Task{{ID: "11111111-1111-1111-1111-111111111111", Title: "A"}}
-	repo.On("List", mock.Anything).Return(expected, nil)
+	repo.On("List", mock.Anything, mock.Anything).Return(&domain.ListResult{Items: expected}, nil)
 
 	svc := task.NewService(repo)
-	tasks, err := svc.List(context.Background())
+	result, err := svc.List(context.Background(), task.ListInput{})
 	require.NoError(t, err)
-	assert.Equal(t, expected, tasks)
+	assert.Equal(t, expected, result.Items)
 }
 
 func TestService_Create_InvalidStatus(t *testing.T) {

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/delivery/http/dto"
 	"github.com/MahdiFirouz2002/golang-todo-service/internal/domain"
@@ -43,17 +45,57 @@ func (h *TaskHandler) Create(c *gin.Context) {
 
 // List handles GET /api/v1/tasks
 func (h *TaskHandler) List(c *gin.Context) {
-	tasks, err := h.service.List(c.Request.Context())
+	input, err := parseListInput(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	result, err := h.service.List(c.Request.Context(), input)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 
-	if tasks == nil {
-		tasks = []*domain.Task{}
+	if result.Items == nil {
+		result.Items = []*domain.Task{}
 	}
 
-	c.JSON(http.StatusOK, tasks)
+	c.JSON(http.StatusOK, result)
+}
+
+func parseListInput(c *gin.Context) (task.ListInput, error) {
+	input := task.ListInput{Page: 1, PageSize: 20}
+
+	if page := c.Query("page"); page != "" {
+		value, err := strconv.Atoi(page)
+		if err != nil || value < 1 {
+			return input, fmt.Errorf("invalid page")
+		}
+		input.Page = value
+	}
+
+	if pageSize := c.Query("page_size"); pageSize != "" {
+		value, err := strconv.Atoi(pageSize)
+		if err != nil || value < 1 {
+			return input, fmt.Errorf("invalid page_size")
+		}
+		input.PageSize = value
+	}
+
+	if status := c.Query("status"); status != "" {
+		taskStatus := domain.TaskStatus(status)
+		if !taskStatus.Valid() {
+			return input, fmt.Errorf("invalid status")
+		}
+		input.Status = &taskStatus
+	}
+
+	if assignee := c.Query("assignee"); assignee != "" {
+		input.Assignee = &assignee
+	}
+
+	return input, nil
 }
 
 // Get handles GET /api/v1/tasks/:id
